@@ -373,7 +373,7 @@ if "Dam Raise Method" in filtered.columns:
 # -------------------------
 # COMPLETE DATABASE TABLE + DOWNLOAD
 # -------------------------
-st.subheader("Complete Database (Draft, v. June 2025)")
+st.subheader("Database (Draft, v. June 2025)")
 hide_cols = ["fill_color", "line_color", "line_width_px"]
 display_cols = [c for c in CSV_HEADERS if c in filtered.columns] + [c for c in filtered.columns if c not in CSV_HEADERS + hide_cols]
 display_df = filtered[display_cols]
