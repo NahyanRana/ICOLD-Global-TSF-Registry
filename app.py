@@ -1,7 +1,8 @@
 # app.py
 # Global Registry of Tailings Storage Facilities — Streamlit (pydeck)
-# Public-only, local CSV loader; theme toggle (Light/Dark) from sidebar;
-# Dark theme: white text + white chart outlines + logos on white background; map unchanged (OSM).
+# Public-only, local CSV loader; theme toggle (Light/Dark); basemap selector (OSM/Esri/CARTO);
+# Map: no wrap, white tooltips, marker size in PIXELS (auto-calibrates visually with zoom);
+# Filters; Database table; Collapsible Overview Statistics.
 
 import io
 import os
@@ -21,31 +22,45 @@ st.set_page_config(page_title="Global Registry of Tailings Storage Facilities", 
 # -------------------------
 # FORCE PUBLIC MODE (no uploader)
 # -------------------------
-DEV_MODE = False  # public-only; do not show uploader or data-source debug
+DEV_MODE = False
 
 # Paths
 APP_DIR = Path(__file__).parent.resolve()
 DATA_PATH = APP_DIR / "data" / "v2.0-Global-TSF-Registry_June2025.csv"
 
 # -------------------------
-# SIDEBAR THEME (works immediately)
+# BASEMAP TILE ENDPOINTS
+# -------------------------
+ESRI_WORLD_IMAGERY = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+ESRI_REF_LABELS    = "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+OSM_TILES          = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+CARTO_DARK_TILES   = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+
+# -------------------------
+# SIDEBAR: THEME + BASEMAP
 # -------------------------
 st.sidebar.header("Display")
-theme_choice = st.sidebar.radio("Theme", ["Light", "Dark"], index=0, help="Switch text & charts; map remains unchanged")
+theme_choice = st.sidebar.radio("Theme", ["Light", "Dark"], index=0, help="Switch text & charts; map tiles set below")
+basemap_choice = st.sidebar.selectbox(
+    "Basemap",
+    ["OpenStreetMap", "Esri Satellite", "Esri Satellite + Labels", "CARTO Dark"],
+    index=0,
+    help="Switch the tile layer. Satellite uses Esri World Imagery."
+)
 
-# Variables derived from theme
+# Theme variables
 is_dark = (theme_choice == "Dark")
 plotly_template = "plotly_dark" if is_dark else "plotly"
-bar_outline = "black"  # <-- keep black outlines in both themes
+bar_outline = "black"  # keep black outlines in both themes
 text_color = "#FFFFFF" if is_dark else "#222222"
 subtext_color = "#DDDDDD" if is_dark else "#666666"
 
 # -------------------------
-# THEME-SPECIFIC CSS (text colors, logo background in dark)
+# THEME CSS (page/bg + sidebar contrast, text color, logos pill in dark)
 # -------------------------
 if is_dark:
-    page_bg_color = "#000000"      # pure black for main body
-    sidebar_bg_color = "#1A1A1A"   # slightly lighter grey for sidebar
+    page_bg_color = "#000000"
+    sidebar_bg_color = "#1A1A1A"
 else:
     page_bg_color = "#FFFFFF"
     sidebar_bg_color = "#F0F2F6"
@@ -70,7 +85,7 @@ base_css = f"""
     color: {text_color} !important;
   }}
   .muted {{ color: {subtext_color} !important; }}
-  /* Logos row (baseline) */
+  /* Logos row */
   .logos-row {{display:flex; justify-content:center; align-items:center; gap:28px; margin-bottom:12px;}}
   .logos-row img {{height: 76px; object-fit: contain;}}
   /* Map height */
@@ -79,76 +94,55 @@ base_css = f"""
 </style>
 """
 st.markdown(base_css, unsafe_allow_html=True)
-# Make sidebar widget text visible in Dark theme
+
+# Sidebar widget visibility in dark
 if is_dark:
     st.markdown("""
     <style>
-      /* Select / Multiselect control (closed state) */
+      /* Select / Multiselect (closed) */
       section[data-testid="stSidebar"] [data-baseweb="select"] > div {
         background-color: #1A1A1A !important;
         color: #FFFFFF !important;
         border-color: #333333 !important;
       }
-      section[data-testid="stSidebar"] [data-baseweb="select"] input {
-        color: #FFFFFF !important;
-      }
-      section[data-testid="stSidebar"] [data-baseweb="select"] svg {
-        fill: #FFFFFF !important;
-      }
+      section[data-testid="stSidebar"] [data-baseweb="select"] input { color: #FFFFFF !important; }
+      section[data-testid="stSidebar"] [data-baseweb="select"] svg { fill: #FFFFFF !important; }
 
-      /* Dropdown menu (open state) */
+      /* Dropdown menu (open) */
       [data-baseweb="popover"] [role="listbox"] {
         background-color: #111111 !important;
         border: 1px solid #333333 !important;
       }
-      [data-baseweb="popover"] [role="option"] {
-        color: #FFFFFF !important;
-      }
-      [data-baseweb="popover"] [role="option"][aria-selected="true"] {
-        background-color: #2A2A2A !important;
-      }
-      [data-baseweb="popover"] [role="option"]:hover {
-        background-color: #222222 !important;
-      }
+      [data-baseweb="popover"] [role="option"] { color: #FFFFFF !important; }
+      [data-baseweb="popover"] [role="option"][aria-selected="true"] { background-color: #2A2A2A !important; }
+      [data-baseweb="popover"] [role="option"]:hover { background-color: #222222 !important; }
 
-      /* Text inputs, sliders, radios in sidebar */
+      /* Inputs/sliders/radios in sidebar */
       section[data-testid="stSidebar"] input, 
       section[data-testid="stSidebar"] textarea {
         color: #FFFFFF !important;
         background-color: #1A1A1A !important;
         border-color: #333333 !important;
       }
-      section[data-testid="stSidebar"] input::placeholder {
-        color: #BBBBBB !important;
-      }
+      section[data-testid="stSidebar"] input::placeholder { color: #BBBBBB !important; }
       section[data-testid="stSidebar"] .stRadio label,
-      section[data-testid="stSidebar"] label {
-        color: #FFFFFF !important;
-      }
-
-      /* Slider value bubble */
+      section[data-testid="stSidebar"] label { color: #FFFFFF !important; }
       section[data-testid="stSidebar"] .stSlider [data-testid="stThumbValue"] {
-        color: #FFFFFF !important;
-        background: #333333 !important;
+        color: #FFFFFF !important; background: #333333 !important;
       }
     </style>
     """, unsafe_allow_html=True)
 
-
-# Add a white background “pill” behind logos only in Dark mode
-if is_dark:
-    logos_wrapper_style = "background:#FFFFFF; padding:12px 16px; border-radius:12px;"
-else:
-    logos_wrapper_style = ""  # transparent in Light mode
+# Logos pill only in dark
+logos_wrapper_style = "background:#FFFFFF; padding:12px 16px; border-radius:12px;" if is_dark else ""
 
 # -------------------------
-# LOGOS (bigger + top spacing, white bg pill in dark)
+# LOGOS
 # -------------------------
 def _img_b64(path: Path) -> str:
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
-# top spacer so logos never get clipped
 st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
 
 logos_html_items = []
@@ -166,7 +160,7 @@ if logos_html_items:
     )
 
 # -------------------------
-# TITLE + DRAFT LABEL + SUBHEADER + DISCLAIMER
+# TITLE + SUBTEXT
 # -------------------------
 st.markdown(
     """
@@ -292,7 +286,7 @@ def load_data_local(path: Path) -> pd.DataFrame:
     return df[ordered + extras]
 
 # -------------------------
-# DATA SOURCE (LOCAL FILE ONLY, no sidebar debug in public)
+# DATA SOURCE (LOCAL FILE ONLY)
 # -------------------------
 if not DATA_PATH.exists():
     st.error(f"Registry CSV not found at: {DATA_PATH}")
@@ -316,8 +310,8 @@ statuses = st.sidebar.multiselect("TSF Status", sorted(df["TSF Status"].dropna()
 classes = st.sidebar.multiselect("Consequence Classification", sorted(df["Consequence Classification"].dropna().unique()))
 raise_methods = st.sidebar.multiselect("Dam Raise Method", sorted(df["Dam Raise Method"].dropna().unique())) if "Dam Raise Method" in df.columns else []
 
-# Marker size constant (meters)
-marker_size = st.sidebar.slider("Marker size (m)", min_value=5_000, max_value=100_000, value=30_000, step=5_000)
+# Marker size slider (PIXELS, so it "auto-calibrates" visually with zoom)
+marker_size_px = st.sidebar.slider("Marker size (pixels)", min_value=4, max_value=40, value=10, step=1)
 
 # Sliders
 valid_years = df["Year of Commencement"].dropna().astype(int) if "Year of Commencement" in df.columns else pd.Series([], dtype=int)
@@ -347,26 +341,32 @@ mask_vol  = filtered["Current Storage Volume (m3)"].between(vol_range[0], vol_ra
 filtered = filtered[mask_year & mask_vol]
 
 # -------------------------
-# MAP (OSM tiles, no wrap, centered column) — map stays the same in both themes
+# MAP (TileLayer basemaps, no wrap, white tooltip text, pixel markers)
 # -------------------------
-# Neutral styling: black fill, white outline (outline stays white even in dark to pop on OSM)
+# Choose basemap layers
+if basemap_choice == "OpenStreetMap":
+    basemap_layers = [pdk.Layer("TileLayer", data=OSM_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)]
+    basemap_attrib = "Basemap © OpenStreetMap contributors"
+elif basemap_choice == "Esri Satellite":
+    basemap_layers = [pdk.Layer("TileLayer", data=ESRI_WORLD_IMAGERY, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)]
+    basemap_attrib = "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+elif basemap_choice == "Esri Satellite + Labels":
+    basemap_layers = [
+        pdk.Layer("TileLayer", data=ESRI_WORLD_IMAGERY, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False),
+        pdk.Layer("TileLayer", data=ESRI_REF_LABELS,    min_zoom=0, max_zoom=20, tile_size=256, opacity=0.85, wrapLongitude=False),
+    ]
+    basemap_attrib = "Imagery © Esri, Maxar, Earthstar Geographics; Labels © Esri"
+else:  # CARTO Dark
+    basemap_layers = [pdk.Layer("TileLayer", data=CARTO_DARK_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)]
+    basemap_attrib = "Dark tiles © CARTO"
+
+# Marker styling (neutral black fill + white stroke)
 filtered = filtered.copy()
-filtered["fill_color"] = [[0, 0, 0, 200] for _ in range(len(filtered))]
+filtered["fill_color"] = [[0, 0, 0, 220] for _ in range(len(filtered))]
 filtered["line_color"] = [[255, 255, 255] for _ in range(len(filtered))]
 filtered["line_width_px"] = 1
 
-# Map tiles: keep constant regardless of theme (per your request)
-tile_url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-
-basemap_layers = [
-    pdk.Layer(
-        "TileLayer",
-        data=tile_url,
-        min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0,
-        wrapLongitude=False  # prevent horizontal wrap
-    )
-]
-
+# View
 if len(filtered):
     lat0, lon0 = float(filtered["Latitude"].mean()), float(filtered["Longitude"].mean())
     zoom0 = 2.5 if len(filtered) > 3 else 4
@@ -375,18 +375,42 @@ else:
 view_state = pdk.ViewState(latitude=lat0, longitude=lon0, zoom=zoom0)
 map_view = pdk.View("MapView", controller=True, repeat=False)
 
+# Points layer — use PIXELS so size "auto-calibrates" visually with zoom
 layer_points = pdk.Layer(
     "ScatterplotLayer",
     data=filtered,
     get_position='[Longitude, Latitude]',
     get_fill_color="fill_color",
-    get_radius=marker_size,
-    stroked=True,
     get_line_color="line_color",
     get_line_width="line_width_px",
+    stroked=True,
     pickable=True,
-    wrapLongitude=False
+    radiusUnits="pixels",
+    get_radius=marker_size_px,
+    radiusMinPixels=2,
+    radiusMaxPixels=60,
+    wrapLongitude=False,
 )
+
+# Tooltip with white text
+tooltip = {
+    "html": (
+        "<div style='color:white;'>"
+        "<b>{TSF Name}</b><br/>"
+        "ID: {ID}<br/>"
+        "Mine: {Mine Name}<br/>"
+        "Owner: {Current Owner}<br/>"
+        "Country: {Country}<br/>"
+        "Consequence: {Consequence Classification}<br/>"
+        "Status: {TSF Status}<br/>"
+        "Dam Raise: {Dam Raise Method}<br/>"
+        "Year of Commencement: {Year of Commencement}<br/>"
+        "Current Storage Volume (m³): {Current Storage Volume (m3)}<br/>"
+        "Current Max Dam Height (m): {Current Max Dam Height (m)}"
+        "</div>"
+    ),
+    "style": {"backgroundColor": "rgba(0,0,0,0.85)", "color": "white", "fontSize": "12px"},
+}
 
 left_spacer, map_col, right_spacer = st.columns([1, 5, 1])
 with map_col:
@@ -395,38 +419,23 @@ with map_col:
         layers=[*basemap_layers, layer_points],
         initial_view_state=view_state,
         views=[map_view],
-        tooltip={"html":(
-            "<b>{TSF Name}</b><br/>"
-            "ID: {ID}<br/>"
-            "Mine: {Mine Name}<br/>"
-            "Owner: {Current Owner}<br/>"
-            "Country: {Country}<br/>"
-            "Consequence: {Consequence Classification}<br/>"
-            "Status: {TSF Status}<br/>"
-            "Dam Raise: {Dam Raise Method}<br/>"
-            "Year of Commencement: {Year of Commencement}<br/>"
-            "Current Storage Volume (m³): {Current Storage Volume (m3)}<br/>"
-            "Current Max Dam Height (m): {Current Max Dam Height (m)}"
-        )},
-        map_style=None  # use our TileLayer instead of Mapbox styles
+        tooltip=tooltip,
+        map_style=None  # we’re using TileLayer tiles, not Mapbox styles
     )
     st.pydeck_chart(deck)
-    st.caption("<span class='muted'>Basemap © OpenStreetMap contributors</span>", unsafe_allow_html=True)
-
+    st.caption(f"<span class='muted'>{basemap_attrib}</span>", unsafe_allow_html=True)
 
 # -------------------------
-# COMPLETE DATABASE TABLE + DOWNLOAD
+# DATABASE TABLE + DOWNLOAD
 # -------------------------
 st.subheader("Database (Draft, v. June 2025)")
 
-# Choose columns to display (hide styling columns)
 hide_cols = ["fill_color", "line_color", "line_width_px"]
 display_cols = [c for c in CSV_HEADERS if c in filtered.columns] + [
     c for c in filtered.columns if c not in CSV_HEADERS + hide_cols
 ]
 display_df = filtered[display_cols]
 
-# Pretty-print Current Storage Volume (m3)
 if "Current Storage Volume (m3)" in display_df.columns:
     fmt_df = display_df.copy()
     fmt_df["Current Storage Volume (m3)"] = fmt_df["Current Storage Volume (m3)"].map(
@@ -444,7 +453,7 @@ st.download_button(
 )
 
 # =========================
-# Overview Statistics (collapsible) — placed AFTER the database
+# Overview Statistics (collapsible) — AFTER the database
 # =========================
 with st.expander("Overview Statistics (click to expand)", expanded=False):
 
@@ -527,9 +536,7 @@ with st.expander("Overview Statistics (click to expand)", expanded=False):
     # Cumulative number of constructed TSFs (by Year of Commencement)
     year_col = "Year of Commencement"
     if year_col in filtered.columns:
-        year_series = filtered[year_col].dropna()
-        # Coerce to int safely
-        year_series = pd.to_numeric(year_series, errors="coerce").dropna().astype(int)
+        year_series = pd.to_numeric(filtered[year_col], errors="coerce").dropna().astype(int)
         if len(year_series):
             yr_min, yr_max = int(year_series.min()), int(year_series.max())
             full_idx = pd.RangeIndex(yr_min, yr_max + 1)
