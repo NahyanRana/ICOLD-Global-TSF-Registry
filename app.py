@@ -417,17 +417,24 @@ with map_col:
 # -------------------------
 # COMPLETE DATABASE TABLE + DOWNLOAD
 # -------------------------
-st.subheader("Database (Draft, v. June 2025)")
+st.subheader("Complete Database (Draft, v. June 2025)")
+
+# Choose columns to display (hide styling columns)
 hide_cols = ["fill_color", "line_color", "line_width_px"]
-display_cols = [c for c in CSV_HEADERS if c in filtered.columns] + [c for c in filtered.columns if c not in CSV_HEADERS + hide_cols]
+display_cols = [c for c in CSV_HEADERS if c in filtered.columns] + [
+    c for c in filtered.columns if c not in CSV_HEADERS + hide_cols
+]
 display_df = filtered[display_cols]
 
+# Pretty-print Current Storage Volume (m3)
 if "Current Storage Volume (m3)" in display_df.columns:
     fmt_df = display_df.copy()
-    fmt_df["Current Storage Volume (m3)"] = fmt_df["Current Storage Volume (m3)"].map(lambda x: f"{int(x):,}" if pd.notnull(x) else "")
-    st.dataframe(fmt_df)
+    fmt_df["Current Storage Volume (m3)"] = fmt_df["Current Storage Volume (m3)"].map(
+        lambda x: f"{int(x):,}" if pd.notnull(x) else ""
+    )
+    st.dataframe(fmt_df, use_container_width=True)
 else:
-    st.dataframe(display_df)
+    st.dataframe(display_df, use_container_width=True)
 
 st.download_button(
     "Download filtered CSV",
@@ -435,10 +442,6 @@ st.download_button(
     file_name="tsf_registry_filtered.csv",
     mime="text/csv"
 )
-
-st.dataframe(...)
-
-st.download_button(...)
 
 # =========================
 # Overview Statistics (collapsible) — placed AFTER the database
