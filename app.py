@@ -79,6 +79,60 @@ base_css = f"""
 </style>
 """
 st.markdown(base_css, unsafe_allow_html=True)
+# Make sidebar widget text visible in Dark theme
+if is_dark:
+    st.markdown("""
+    <style>
+      /* Select / Multiselect control (closed state) */
+      section[data-testid="stSidebar"] [data-baseweb="select"] > div {
+        background-color: #1A1A1A !important;
+        color: #FFFFFF !important;
+        border-color: #333333 !important;
+      }
+      section[data-testid="stSidebar"] [data-baseweb="select"] input {
+        color: #FFFFFF !important;
+      }
+      section[data-testid="stSidebar"] [data-baseweb="select"] svg {
+        fill: #FFFFFF !important;
+      }
+
+      /* Dropdown menu (open state) */
+      [data-baseweb="popover"] [role="listbox"] {
+        background-color: #111111 !important;
+        border: 1px solid #333333 !important;
+      }
+      [data-baseweb="popover"] [role="option"] {
+        color: #FFFFFF !important;
+      }
+      [data-baseweb="popover"] [role="option"][aria-selected="true"] {
+        background-color: #2A2A2A !important;
+      }
+      [data-baseweb="popover"] [role="option"]:hover {
+        background-color: #222222 !important;
+      }
+
+      /* Text inputs, sliders, radios in sidebar */
+      section[data-testid="stSidebar"] input, 
+      section[data-testid="stSidebar"] textarea {
+        color: #FFFFFF !important;
+        background-color: #1A1A1A !important;
+        border-color: #333333 !important;
+      }
+      section[data-testid="stSidebar"] input::placeholder {
+        color: #BBBBBB !important;
+      }
+      section[data-testid="stSidebar"] .stRadio label,
+      section[data-testid="stSidebar"] label {
+        color: #FFFFFF !important;
+      }
+
+      /* Slider value bubble */
+      section[data-testid="stSidebar"] .stSlider [data-testid="stThumbValue"] {
+        color: #FFFFFF !important;
+        background: #333333 !important;
+      }
+    </style>
+    """, unsafe_allow_html=True)
 
 
 # Add a white background “pill” behind logos only in Dark mode
