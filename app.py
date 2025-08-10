@@ -413,35 +413,6 @@ with map_col:
     st.pydeck_chart(deck)
     st.caption("<span class='muted'>Basemap © OpenStreetMap contributors</span>", unsafe_allow_html=True)
 
-# -------------------------
-# OVERVIEW STATISTICS (Top 10; outlines switch with theme)
-# -------------------------
-st.subheader("Overview Statistics")
-
-country_counts = (
-    filtered["Country"].dropna().value_counts().head(10).sort_values(ascending=False).rename_axis("Country").reset_index(name="Count")
-)
-fig_country = px.bar(country_counts, x="Country", y="Count", title="By Country (Top 10)", template=plotly_template)
-fig_country.update_traces(marker_color="rgba(0,0,0,0)", marker_line_color=bar_outline, marker_line_width=1.5)
-fig_country.update_layout(showlegend=False, bargap=0.35)
-st.plotly_chart(fig_country, use_container_width=True)
-
-status_counts = (
-    filtered["TSF Status"].fillna("Unknown").astype(str).value_counts().head(10).sort_values(ascending=False).rename_axis("TSF Status").reset_index(name="Count")
-)
-fig_status = px.bar(status_counts, x="TSF Status", y="Count", title="By TSF Status (Top 10)", template=plotly_template)
-fig_status.update_traces(marker_color="rgba(0,0,0,0)", marker_line_color=bar_outline, marker_line_width=1.5)
-fig_status.update_layout(showlegend=False, bargap=0.35)
-st.plotly_chart(fig_status, use_container_width=True)
-
-if "Dam Raise Method" in filtered.columns:
-    raise_counts = (
-        filtered["Dam Raise Method"].dropna().astype(str).value_counts().head(10).sort_values(ascending=False).rename_axis("Dam Raise Method").reset_index(name="Count")
-    )
-    fig_raise = px.bar(raise_counts, x="Dam Raise Method", y="Count", title="By Dam Raise Method (Top 10)", template=plotly_template)
-    fig_raise.update_traces(marker_color="rgba(0,0,0,0)", marker_line_color=bar_outline, marker_line_width=1.5)
-    fig_raise.update_layout(showlegend=False, bargap=0.35)
-    st.plotly_chart(fig_raise, use_container_width=True)
 
 # -------------------------
 # COMPLETE DATABASE TABLE + DOWNLOAD
@@ -464,3 +435,119 @@ st.download_button(
     file_name="tsf_registry_filtered.csv",
     mime="text/csv"
 )
+
+st.dataframe(...)
+
+st.download_button(...)
+
+# =========================
+# Overview Statistics (collapsible) — placed AFTER the database
+# =========================
+with st.expander("Overview Statistics (click to expand)", expanded=False):
+
+    st.markdown("These charts respect the current filters.", help="Counts and trends update as you change filters above.")
+
+    # By Country (Top 10, black outline, no fill)
+    country_counts = (
+        filtered["Country"].dropna()
+        .value_counts()
+        .head(10)
+        .sort_values(ascending=False)
+        .rename_axis("Country")
+        .reset_index(name="Count")
+    )
+    if len(country_counts):
+        fig_country = px.bar(
+            country_counts, x="Country", y="Count",
+            title="By Country (Top 10)",
+            template=plotly_template
+        )
+        fig_country.update_traces(
+            marker_color="rgba(0,0,0,0)",
+            marker_line_color=bar_outline,
+            marker_line_width=1.5
+        )
+        fig_country.update_layout(showlegend=False, bargap=0.35)
+        st.plotly_chart(fig_country, use_container_width=True)
+    else:
+        st.info("No country data for the current filters.")
+
+    # By TSF Status (Top 10, black outline, no fill)
+    status_counts = (
+        filtered["TSF Status"].fillna("Unknown").astype(str)
+        .value_counts()
+        .head(10)
+        .sort_values(ascending=False)
+        .rename_axis("TSF Status")
+        .reset_index(name="Count")
+    )
+    if len(status_counts):
+        fig_status = px.bar(
+            status_counts, x="TSF Status", y="Count",
+            title="By TSF Status (Top 10)",
+            template=plotly_template
+        )
+        fig_status.update_traces(
+            marker_color="rgba(0,0,0,0)",
+            marker_line_color=bar_outline,
+            marker_line_width=1.5
+        )
+        fig_status.update_layout(showlegend=False, bargap=0.35)
+        st.plotly_chart(fig_status, use_container_width=True)
+    else:
+        st.info("No TSF status data for the current filters.")
+
+    # By Dam Raise Method (Top 10, black outline, no fill) — only if column exists
+    if "Dam Raise Method" in filtered.columns:
+        raise_counts = (
+            filtered["Dam Raise Method"].dropna().astype(str)
+            .value_counts()
+            .head(10)
+            .sort_values(ascending=False)
+            .rename_axis("Dam Raise Method")
+            .reset_index(name="Count")
+        )
+        if len(raise_counts):
+            fig_raise = px.bar(
+                raise_counts, x="Dam Raise Method", y="Count",
+                title="By Dam Raise Method (Top 10)",
+                template=plotly_template
+            )
+            fig_raise.update_traces(
+                marker_color="rgba(0,0,0,0)",
+                marker_line_color=bar_outline,
+                marker_line_width=1.5
+            )
+            fig_raise.update_layout(showlegend=False, bargap=0.35)
+            st.plotly_chart(fig_raise, use_container_width=True)
+
+    # Cumulative number of constructed TSFs (by Year of Commencement)
+    year_col = "Year of Commencement"
+    if year_col in filtered.columns:
+        year_series = filtered[year_col].dropna()
+        # Coerce to int safely
+        year_series = pd.to_numeric(year_series, errors="coerce").dropna().astype(int)
+        if len(year_series):
+            yr_min, yr_max = int(year_series.min()), int(year_series.max())
+            full_idx = pd.RangeIndex(yr_min, yr_max + 1)
+            per_year = year_series.value_counts().sort_index().reindex(full_idx, fill_value=0)
+            cum_df = per_year.cumsum().rename("Cumulative TSFs").reset_index().rename(columns={"index": "Year"})
+
+            line_color = "#FFFFFF" if is_dark else "#000000"
+            fig_cum = px.line(
+                cum_df, x="Year", y="Cumulative TSFs",
+                title="Cumulative Number of Constructed TSFs (by Year)",
+                template=plotly_template
+            )
+            fig_cum.update_traces(
+                mode="lines+markers",
+                line=dict(color=line_color, width=2),
+                marker=dict(size=5, line=dict(color=line_color, width=1)),
+                hovertemplate="Year %{x}<br>Cumulative %{y}<extra></extra>"
+            )
+            fig_cum.update_layout(margin=dict(l=10, r=10, t=60, b=10))
+            st.plotly_chart(fig_cum, use_container_width=True)
+        else:
+            st.info("No valid 'Year of Commencement' values available for the current filters.")
+    else:
+        st.info("'Year of Commencement' column not found.")
