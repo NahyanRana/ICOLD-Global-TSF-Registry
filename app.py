@@ -448,7 +448,7 @@ with map_col:
         layers=[*basemap_layers, layer_points],
         initial_view_state=view_state,
         views=[map_view],
-        tooltip={"html": tooltip_html}
+        tooltip={"html": tooltip_html},
         map_style=None  # we’re using TileLayer tiles, not Mapbox styles
     )
     st.pydeck_chart(deck, key=f"map-{basemap_choice}-{theme_choice}")
