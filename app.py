@@ -1,7 +1,7 @@
 # app.py
 # Global Registry of Tailings Storage Facilities — Streamlit (pydeck)
-# Public-only, local CSV loader; theme toggle (Light/Dark); basemap selector (OSM/Esri/CARTO);
-# Map: no wrap, white tooltips, marker size in PIXELS (auto-calibrates visually with zoom);
+# Public-only, local CSV loader; Theme (Light/Dark); Basemap selector (OSM/Esri/CARTO);
+# Map: no wrap, white tooltip text, pixel markers (1–10 px) that visually auto-scale with zoom;
 # Filters; Database table; Collapsible Overview Statistics.
 
 import io
@@ -35,33 +35,6 @@ ESRI_WORLD_IMAGERY = "https://services.arcgisonline.com/ArcGIS/rest/services/Wor
 ESRI_REF_LABELS    = "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
 OSM_TILES          = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 CARTO_DARK_TILES   = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-
-# Build basemap layers from selection
-if basemap_choice == "OpenStreetMap":
-    basemap_layers = [
-        pdk.Layer("TileLayer", data=OSM_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
-    ]
-    basemap_attrib = "Basemap © OpenStreetMap contributors"
-
-elif basemap_choice == "Esri Satellite":
-    basemap_layers = [
-        pdk.Layer("TileLayer", data=ESRI_WORLD_IMAGERY, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
-    ]
-    basemap_attrib = "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community"
-
-elif basemap_choice == "Esri Satellite + Labels":
-    basemap_layers = [
-        pdk.Layer("TileLayer", data=ESRI_WORLD_IMAGERY, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False),
-        pdk.Layer("TileLayer", data=ESRI_REF_LABELS,    min_zoom=0, max_zoom=20, tile_size=256, opacity=0.85, wrapLongitude=False),
-    ]
-    basemap_attrib = "Imagery © Esri, Maxar, Earthstar Geographics; Labels © Esri"
-
-else:  # CARTO Dark
-    basemap_layers = [
-        pdk.Layer("TileLayer", data=CARTO_DARK_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
-    ]
-    basemap_attrib = "Dark tiles © CARTO"
-
 
 # -------------------------
 # SIDEBAR: THEME + BASEMAP
@@ -337,7 +310,7 @@ statuses = st.sidebar.multiselect("TSF Status", sorted(df["TSF Status"].dropna()
 classes = st.sidebar.multiselect("Consequence Classification", sorted(df["Consequence Classification"].dropna().unique()))
 raise_methods = st.sidebar.multiselect("Dam Raise Method", sorted(df["Dam Raise Method"].dropna().unique())) if "Dam Raise Method" in df.columns else []
 
-# Marker size slider (PIXELS, so it "auto-calibrates" visually with zoom)
+# Marker size slider (PIXELS, 1–10)
 marker_size_px = st.sidebar.slider("Marker size (pixels)", min_value=1, max_value=10, value=5, step=1)
 
 # Sliders
@@ -370,12 +343,16 @@ filtered = filtered[mask_year & mask_vol]
 # -------------------------
 # MAP (TileLayer basemaps, no wrap, white tooltip text, pixel markers)
 # -------------------------
-# Choose basemap layers
+# Build basemap layers from selection
 if basemap_choice == "OpenStreetMap":
-    basemap_layers = [pdk.Layer("TileLayer", data=OSM_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)]
+    basemap_layers = [
+        pdk.Layer("TileLayer", data=OSM_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
+    ]
     basemap_attrib = "Basemap © OpenStreetMap contributors"
 elif basemap_choice == "Esri Satellite":
-    basemap_layers = [pdk.Layer("TileLayer", data=ESRI_WORLD_IMAGERY, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)]
+    basemap_layers = [
+        pdk.Layer("TileLayer", data=ESRI_WORLD_IMAGERY, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
+    ]
     basemap_attrib = "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community"
 elif basemap_choice == "Esri Satellite + Labels":
     basemap_layers = [
@@ -384,7 +361,9 @@ elif basemap_choice == "Esri Satellite + Labels":
     ]
     basemap_attrib = "Imagery © Esri, Maxar, Earthstar Geographics; Labels © Esri"
 else:  # CARTO Dark
-    basemap_layers = [pdk.Layer("TileLayer", data=CARTO_DARK_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)]
+    basemap_layers = [
+        pdk.Layer("TileLayer", data=CARTO_DARK_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
+    ]
     basemap_attrib = "Dark tiles © CARTO"
 
 # Marker styling (neutral black fill + white stroke)
@@ -402,7 +381,7 @@ else:
 view_state = pdk.ViewState(latitude=lat0, longitude=lon0, zoom=zoom0)
 map_view = pdk.View("MapView", controller=True, repeat=False)
 
-# Points layer — use PIXELS so size "auto-calibrates" visually with zoom
+# Points layer — use PIXELS so size visually scales with zoom
 layer_points = pdk.Layer(
     "ScatterplotLayer",
     data=filtered,
@@ -415,17 +394,15 @@ layer_points = pdk.Layer(
     auto_highlight=True,
     radiusUnits="pixels",
     get_radius=marker_size_px,
-    radiusMinPixels=2,
+    radiusMinPixels=1,
     radiusMaxPixels=60,
     wrapLongitude=False,
 )
 
-# Tooltip with white text
-# (A) REPLACE your tooltip dict with this HTML-only version
+# Tooltip with white text in a dark bubble
 tooltip_html = (
-    "<div style='background: rgba(0,0,0,0.88);"
-    " color:#FFFFFF; padding:8px 10px; border-radius:6px;"
-    " font-size:12px; line-height:1.3;'>"
+    "<div style='background: rgba(0,0,0,0.88); color:#FFFFFF; padding:8px 10px; "
+    "border-radius:6px; font-size:12px; line-height:1.3;'>"
     "<b>{TSF Name}</b><br/>"
     "ID: {ID}<br/>"
     "Mine: {Mine Name}<br/>"
@@ -440,7 +417,6 @@ tooltip_html = (
     "</div>"
 )
 
-
 left_spacer, map_col, right_spacer = st.columns([1, 5, 1])
 with map_col:
     st.subheader("Map")
@@ -449,15 +425,16 @@ with map_col:
         initial_view_state=view_state,
         views=[map_view],
         tooltip={"html": tooltip_html},
-        map_style=None  # we’re using TileLayer tiles, not Mapbox styles
+        map_style=None
     )
+    # Force fresh WebGL canvas when basemap/theme changes
     st.pydeck_chart(deck, key=f"map-{basemap_choice}-{theme_choice}")
     st.caption(f"<span class='muted'>{basemap_attrib}</span>", unsafe_allow_html=True)
 
 # -------------------------
-# DATABASE TABLE + DOWNLOAD
+# COMPLETE DATABASE TABLE + DOWNLOAD
 # -------------------------
-st.subheader("Database (Draft, v. June 2025)")
+st.subheader("Complete Database (Draft, v. June 2025)")
 
 hide_cols = ["fill_color", "line_color", "line_width_px"]
 display_cols = [c for c in CSV_HEADERS if c in filtered.columns] + [
