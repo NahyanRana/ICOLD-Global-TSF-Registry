@@ -36,6 +36,33 @@ ESRI_REF_LABELS    = "https://services.arcgisonline.com/ArcGIS/rest/services/Ref
 OSM_TILES          = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 CARTO_DARK_TILES   = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
 
+# Build basemap layers from selection
+if basemap_choice == "OpenStreetMap":
+    basemap_layers = [
+        pdk.Layer("TileLayer", data=OSM_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
+    ]
+    basemap_attrib = "Basemap © OpenStreetMap contributors"
+
+elif basemap_choice == "Esri Satellite":
+    basemap_layers = [
+        pdk.Layer("TileLayer", data=ESRI_WORLD_IMAGERY, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
+    ]
+    basemap_attrib = "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+
+elif basemap_choice == "Esri Satellite + Labels":
+    basemap_layers = [
+        pdk.Layer("TileLayer", data=ESRI_WORLD_IMAGERY, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False),
+        pdk.Layer("TileLayer", data=ESRI_REF_LABELS,    min_zoom=0, max_zoom=20, tile_size=256, opacity=0.85, wrapLongitude=False),
+    ]
+    basemap_attrib = "Imagery © Esri, Maxar, Earthstar Geographics; Labels © Esri"
+
+else:  # CARTO Dark
+    basemap_layers = [
+        pdk.Layer("TileLayer", data=CARTO_DARK_TILES, min_zoom=0, max_zoom=20, tile_size=256, opacity=1.0, wrapLongitude=False)
+    ]
+    basemap_attrib = "Dark tiles © CARTO"
+
+
 # -------------------------
 # SIDEBAR: THEME + BASEMAP
 # -------------------------
@@ -311,7 +338,7 @@ classes = st.sidebar.multiselect("Consequence Classification", sorted(df["Conseq
 raise_methods = st.sidebar.multiselect("Dam Raise Method", sorted(df["Dam Raise Method"].dropna().unique())) if "Dam Raise Method" in df.columns else []
 
 # Marker size slider (PIXELS, so it "auto-calibrates" visually with zoom)
-marker_size_px = st.sidebar.slider("Marker size (pixels)", min_value=4, max_value=40, value=10, step=1)
+marker_size_px = st.sidebar.slider("Marker size (pixels)", min_value=1, max_value=10, value=5, step=1)
 
 # Sliders
 valid_years = df["Year of Commencement"].dropna().astype(int) if "Year of Commencement" in df.columns else pd.Series([], dtype=int)
@@ -385,6 +412,7 @@ layer_points = pdk.Layer(
     get_line_width="line_width_px",
     stroked=True,
     pickable=True,
+    auto_highlight=True,
     radiusUnits="pixels",
     get_radius=marker_size_px,
     radiusMinPixels=2,
@@ -393,24 +421,25 @@ layer_points = pdk.Layer(
 )
 
 # Tooltip with white text
-tooltip = {
-    "html": (
-        "<div style='color:white;'>"
-        "<b>{TSF Name}</b><br/>"
-        "ID: {ID}<br/>"
-        "Mine: {Mine Name}<br/>"
-        "Owner: {Current Owner}<br/>"
-        "Country: {Country}<br/>"
-        "Consequence: {Consequence Classification}<br/>"
-        "Status: {TSF Status}<br/>"
-        "Dam Raise: {Dam Raise Method}<br/>"
-        "Year of Commencement: {Year of Commencement}<br/>"
-        "Current Storage Volume (m³): {Current Storage Volume (m3)}<br/>"
-        "Current Max Dam Height (m): {Current Max Dam Height (m)}"
-        "</div>"
-    ),
-    "style": {"backgroundColor": "rgba(0,0,0,0.85)", "color": "white", "fontSize": "12px"},
-}
+# (A) REPLACE your tooltip dict with this HTML-only version
+tooltip_html = (
+    "<div style='background: rgba(0,0,0,0.88);"
+    " color:#FFFFFF; padding:8px 10px; border-radius:6px;"
+    " font-size:12px; line-height:1.3;'>"
+    "<b>{TSF Name}</b><br/>"
+    "ID: {ID}<br/>"
+    "Mine: {Mine Name}<br/>"
+    "Owner: {Current Owner}<br/>"
+    "Country: {Country}<br/>"
+    "Consequence: {Consequence Classification}<br/>"
+    "Status: {TSF Status}<br/>"
+    "Dam Raise: {Dam Raise Method}<br/>"
+    "Year of Commencement: {Year of Commencement}<br/>"
+    "Current Storage Volume (m³): {Current Storage Volume (m3)}<br/>"
+    "Current Max Dam Height (m): {Current Max Dam Height (m)}"
+    "</div>"
+)
+
 
 left_spacer, map_col, right_spacer = st.columns([1, 5, 1])
 with map_col:
@@ -419,10 +448,10 @@ with map_col:
         layers=[*basemap_layers, layer_points],
         initial_view_state=view_state,
         views=[map_view],
-        tooltip=tooltip,
+        tooltip={"html": tooltip_html}
         map_style=None  # we’re using TileLayer tiles, not Mapbox styles
     )
-    st.pydeck_chart(deck)
+    st.pydeck_chart(deck, key=f"map-{basemap_choice}-{theme_choice}")
     st.caption(f"<span class='muted'>{basemap_attrib}</span>", unsafe_allow_html=True)
 
 # -------------------------
