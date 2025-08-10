@@ -43,9 +43,27 @@ subtext_color = "#DDDDDD" if is_dark else "#666666"
 # -------------------------
 # THEME-SPECIFIC CSS (text colors, logo background in dark)
 # -------------------------
+if is_dark:
+    page_bg_color = "#000000"      # pure black for main body
+    sidebar_bg_color = "#1A1A1A"   # slightly lighter grey for sidebar
+else:
+    page_bg_color = "#FFFFFF"
+    sidebar_bg_color = "#F0F2F6"
+
 base_css = f"""
 <style>
-  .block-container {{padding-top: 1.6rem; padding-bottom: 2rem;}}
+  /* Main page background */
+  .block-container {{
+      padding-top: 1.6rem; 
+      padding-bottom: 2rem;
+      background-color: {page_bg_color} !important;
+  }}
+
+  /* Sidebar background */
+  section[data-testid="stSidebar"] {{
+      background-color: {sidebar_bg_color} !important;
+  }}
+
   h1, h2, h3 {{font-weight: 700; color: {text_color};}}
   .tight {{margin-top: 0.25rem; margin-bottom: 0.75rem;}}
   .body-text, p, .stMarkdown, .stText, .stCaption, label, span, div {{
@@ -61,6 +79,7 @@ base_css = f"""
 </style>
 """
 st.markdown(base_css, unsafe_allow_html=True)
+
 
 # Add a white background “pill” behind logos only in Dark mode
 if is_dark:
