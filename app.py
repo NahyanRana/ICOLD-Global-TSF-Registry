@@ -1,7 +1,7 @@
 # app.py
 # Global Registry of Tailings Storage Facilities — Streamlit (pydeck)
-# Public mode (forced): always load /data/v2.0-Global-TSF-Registry_June2025.csv
-# Bigger logos with spacing, Light/Dark theme, OSM tiles (no wrap), centered map, filters, charts, and table.
+# Local-file version: always load /data/v2.0-Global-TSF-Registry_June2025.csv (no uploader)
+# Bigger logos with spacing, Light/Dark theme, OSM/CARTO tiles (no wrap), centered map, filters, charts, and table.
 
 import io
 import os
@@ -21,7 +21,7 @@ st.set_page_config(page_title="Global Registry of Tailings Storage Facilities", 
 # -------------------------
 # FORCE PUBLIC MODE (no uploader)
 # -------------------------
-DEV_MODE = False  # hard off. Do not change in public deployment.
+DEV_MODE = False  # hard off for public/local read-only
 
 # Paths
 APP_DIR = Path(__file__).parent.resolve()
@@ -52,7 +52,7 @@ st.markdown(
 # -------------------------
 # LOGOS (bigger + top spacing)
 # -------------------------
-def _img_b64(path: str) -> str:
+def _img_b64(path: Path) -> str:
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
@@ -61,11 +61,11 @@ st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
 
 logos_html = []
 if (APP_DIR / "logo_icold.png").exists():
-    logos_html.append(f"<img src='data:image/png;base64,{_img_b64(str(APP_DIR / 'logo_icold.png'))}' alt='ICOLD'/>")
+    logos_html.append(f"<img src='data:image/png;base64,{_img_b64(APP_DIR / 'logo_icold.png')}' alt='ICOLD'/>")
 if (APP_DIR / "logo_unep.png").exists():
-    logos_html.append(f"<img src='data:image/png;base64,{_img_b64(str(APP_DIR / 'logo_unep.png'))}' alt='UNEP'/>")
+    logos_html.append(f"<img src='data:image/png;base64,{_img_b64(APP_DIR / 'logo_unep.png')}' alt='UNEP'/>")
 if (APP_DIR / "logo_coe.png").exists():
-    logos_html.append(f"<img src='data:image/png;base64,{_img_b64(str(APP_DIR / 'logo_coe.png'))}' alt='Church of England'/>")
+    logos_html.append(f"<img src='data:image/png;base64,{_img_b64(APP_DIR / 'logo_coe.png')}' alt='Church of England'/>")
 
 if logos_html:
     st.markdown("<div class='logos-row'>" + "".join(logos_html) + "</div>", unsafe_allow_html=True)
@@ -173,24 +173,17 @@ def _detect_header_row(df0: pd.DataFrame) -> int:
             best_score, best_i = score, i
     return best_i if best_score >= 5 else 0
 
-def _read_csv_any(path_or_buf):
-    encodings = ["utf-8-sig", "cp1252", "latin1"]
-    is_buffer = hasattr(path_or_buf, "read")
-    raw_bytes = path_or_buf.read() if is_buffer else None
+def _read_csv_any_local(path: Path) -> pd.DataFrame:
+    """Robust local CSV reader: try encodings and delimiter auto-detect; no URL."""
+    encodings = ["utf-8-sig", "utf-8", "cp1252", "latin1"]
     last_err = None
     for enc in encodings:
         try:
-            if is_buffer:
-                text = raw_bytes.decode(enc, errors="replace")
-                buf0 = io.StringIO(text)
-                df0 = pd.read_csv(buf0, engine="python", sep=None, header=None, skip_blank_lines=True)
-                hdr = _detect_header_row(df0)
-                buf = io.StringIO(text)
-                df = pd.read_csv(buf, engine="python", sep=None, header=hdr, skip_blank_lines=True)
-            else:
-                df0 = pd.read_csv(path_or_buf, encoding=enc, engine="python", sep=None, header=None, skip_blank_lines=True)
-                hdr = _detect_header_row(df0)
-                df = pd.read_csv(path_or_buf, encoding=enc, engine="python", sep=None, header=hdr, skip_blank_lines=True)
+            # first pass to detect header row (engine=python, sep=None)
+            df0 = pd.read_csv(path, encoding=enc, engine="python", sep=None, header=None, skip_blank_lines=True)
+            hdr = _detect_header_row(df0)
+            # second pass with detected header
+            df = pd.read_csv(path, encoding=enc, engine="python", sep=None, header=hdr, skip_blank_lines=True)
             df.columns = [_clean_header(c) for c in df.columns]
             return df
         except Exception as e:
@@ -199,14 +192,9 @@ def _read_csv_any(path_or_buf):
     raise last_err
 
 @st.cache_data
-def load_data(file_or_path) -> pd.DataFrame:
-    """Read CSV from a path (str) or uploaded buffer; normalize headers; cast numerics; drop invalid coords."""
-    # Path or file-like only. NO fallback to any sample file.
-    if isinstance(file_or_path, str):
-        with open(file_or_path, "rb") as fh:
-            df = _read_csv_any(fh)
-    else:
-        df = _read_csv_any(file_or_path)
+def load_data_local(path: Path) -> pd.DataFrame:
+    """Load local CSV, normalize headers, cast numerics, drop invalid coords."""
+    df = _read_csv_any_local(path)
 
     # Normalize headers
     df.columns = [_clean_header(c) for c in df.columns]
@@ -234,25 +222,31 @@ def load_data(file_or_path) -> pd.DataFrame:
     extras = [c for c in df.columns if c not in ordered]
     return df[ordered + extras]
 
-# ------- Data Source (URL-first, public read-only) -------
+# -------------------------
+# DATA SOURCE (LOCAL FILE ONLY)
+# -------------------------
 st.sidebar.header("Data Source")
-st.sidebar.info("Using the official, read-only registry dataset (fetched from GitHub Raw).")
+st.sidebar.info("Using the official, read-only registry dataset (local file).")
+st.sidebar.caption(f"Running file: {Path(__file__).name}")
+st.sidebar.caption(f"Data path: {DATA_PATH}")
+st.sidebar.caption(f"Exists? {DATA_PATH.exists()}")
 
-DATA_URL = "https://github.com/NahyanRana/ICOLD-Global-TSF-Registry/blob/main/data/v2.0-Global-TSF-Registry_June2025.csv"  # e.g. https://raw.githubusercontent.com/.../data/v2.0-Global-TSF-Registry_June2025.csv
-
-@st.cache_data(show_spinner=False)
-def _load_from_url(url: str) -> pd.DataFrame:
-    # Use pandas to read directly from the raw URL
-    df = pd.read_csv(url)
-    return df
-
-try:
-    df = _load_from_url(DATA_URL)
-    st.sidebar.caption("Loaded from: GitHub Raw URL")
-except Exception as e:
-    st.error(f"Could not fetch CSV from URL.\nError: {e}")
+if not DATA_PATH.exists():
+    st.error(f"Registry CSV not found at: {DATA_PATH}")
+    try:
+        files = [p.name for p in (APP_DIR / 'data').glob('*')]
+        st.error(f"Files in /data: {files}")
+    except Exception as e:
+        st.error(f"Could not list /data. Error: {e}")
     st.stop()
 
+df = load_data_local(DATA_PATH)
+st.sidebar.caption(f"Loaded: {DATA_PATH.name}")
+
+# Guard
+if df.empty or any(c not in df.columns for c in REQUIRED):
+    st.warning("No valid data loaded. Ensure the registry CSV has the expected headers.")
+    st.stop()
 
 # -------------------------
 # SIDEBAR FILTERS + LIGHT/DARK THEME
