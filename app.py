@@ -36,7 +36,7 @@ theme_choice = st.sidebar.radio("Theme", ["Light", "Dark"], index=0, help="Switc
 # Variables derived from theme
 is_dark = (theme_choice == "Dark")
 plotly_template = "plotly_dark" if is_dark else "plotly"
-bar_outline = "white" if is_dark else "black"
+bar_outline = "black"  # <-- keep black outlines in both themes
 text_color = "#FFFFFF" if is_dark else "#222222"
 subtext_color = "#DDDDDD" if is_dark else "#666666"
 
