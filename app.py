@@ -417,7 +417,7 @@ with map_col:
 # -------------------------
 # COMPLETE DATABASE TABLE + DOWNLOAD
 # -------------------------
-st.subheader("Complete Database (Draft, v. June 2025)")
+st.subheader("Database (Draft, v. June 2025)")
 
 # Choose columns to display (hide styling columns)
 hide_cols = ["fill_color", "line_color", "line_width_px"]
